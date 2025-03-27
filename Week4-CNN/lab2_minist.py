@@ -56,12 +56,12 @@ class CustomMNIST(Dataset):
     
 torch.manual_seed(42)
 
-# 定义超参数
+# parameters
 BATCH_SIZE = 64
 EPOCHS = 30
 LEARNING_RATE = 0.01
-PATIENCE = 5  # 早停耐心值
-VALIDATION_SPLIT = 0.1  # 验证集比例
+PATIENCE = 5 
+VALIDATION_SPLIT = 0.2  
 
 # 数据预处理
 transform = transforms.Compose([
