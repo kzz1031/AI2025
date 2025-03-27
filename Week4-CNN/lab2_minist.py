@@ -6,6 +6,9 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset, random_split
 import numpy as np
 import os
+import matplotlib
+matplotlib.use('Agg')  # 添加这行,设置backend
+import matplotlib.pyplot as plt
 
 class CustomMNIST(Dataset):
     def __init__(self, root_dir, train=True, transform=None):
@@ -157,18 +160,49 @@ def test(model, device, test_loader):
     model.eval()
     test_loss = 0
     correct = 0
+    wrong_samples = []  # 存储错误预测的样本
+    
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()
             pred = output.argmax(dim=1, keepdim=True)
+            
+            # 收集错误预测的样本
+            wrong_mask = ~pred.eq(target.view_as(pred)).squeeze()
+            wrong_samples.extend([
+                (data[i].cpu().numpy().squeeze(), 
+                 int(target[i].cpu().numpy()), 
+                 int(pred[i].cpu().numpy()))
+                for i in range(len(data)) if wrong_mask[i]
+            ])
+            
             correct += pred.eq(target.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
     print(f'\nTest set: Average loss: {test_loss:.4f}, '
           f'Accuracy: {correct}/{len(test_loader.dataset)} '
           f'({100. * correct / len(test_loader.dataset):.2f}%)\n')
+    
+    return wrong_samples
+
+def plot_wrong_predictions(wrong_samples, num_samples=15):
+    """显示错误预测的样本"""
+    num_samples = min(num_samples, len(wrong_samples))
+    fig, axes = plt.subplots(3, 5, figsize=(15, 6))
+    
+    for i, (img, true_label, pred_label) in enumerate(wrong_samples[:num_samples]):
+        ax = axes[i//5, i%5]
+        ax.imshow(img, cmap='gray')
+        ax.set_title(f'True:{true_label}\nPred:{pred_label}')
+        ax.axis('off')
+    
+    plt.tight_layout()
+    # 保存图片而不是显示
+    plt.savefig('wrong_predictions.png')
+    plt.close()
+    print("saved as: wrong_predictions.png")
 
 # 训练模型
 if __name__ == '__main__':
@@ -192,3 +226,12 @@ if __name__ == '__main__':
         if patience_counter >= PATIENCE:
             print(f'Early stopping triggered after epoch {epoch}')
             break
+    
+    # 在训练结束后测试并显示错误预测
+    print('Loading best model and testing...')
+    model.load_state_dict(torch.load('best_model.pth'))
+    wrong_samples = test(model, device, test_loader)
+    print('\nDisplaying some wrong predictions:')
+    plot_wrong_predictions(wrong_samples)
+    print('===Finished Training===')
+    test(model, device, test_loader)
