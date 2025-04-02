@@ -93,8 +93,8 @@ class Net(nn.Module):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.dropout1 = nn.Dropout2d(0.25)
-        self.dropout2 = nn.Dropout2d(0.5)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(64 * 14 * 14, 128)  
         self.fc2 = nn.Linear(128, 10)
 
@@ -124,6 +124,8 @@ optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.5)
 # 训练函数
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
+    train_loss = 0
+    correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
@@ -131,9 +133,22 @@ def train(model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
+        
+        # 计算损失和准确率
+        train_loss += loss.item() * len(data)
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target.view_as(pred)).sum().item()
+        
         if batch_idx % 100 == 0:
             print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
                   f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
+    
+    # 计算平均损失和准确率
+    train_loss /= len(train_loader.dataset)
+    train_accuracy = 100. * correct / len(train_loader.dataset)
+    print(f'Train set: Average loss: {train_loss:.4f}, Accuracy: {correct}/{len(train_loader.dataset)} ({train_accuracy:.2f}%)')
+    
+    return train_loss, train_accuracy
 
 # 验证函数
 def validate(model, device, val_loader):
@@ -173,8 +188,8 @@ def test(model, device, test_loader):
             wrong_mask = ~pred.eq(target.view_as(pred)).squeeze()
             wrong_samples.extend([
                 (data[i].cpu().numpy().squeeze(), 
-                 int(target[i].cpu().numpy()), 
-                 int(pred[i].cpu().numpy()))
+                 int(target[i].cpu().numpy().item()),
+                 int(pred[i].cpu().numpy().item()))
                 for i in range(len(data)) if wrong_mask[i]
             ])
             
@@ -206,32 +221,105 @@ def plot_wrong_predictions(wrong_samples, num_samples=15):
 
 # 训练模型
 if __name__ == '__main__':
-    best_val_loss = float('inf')
-    patience_counter = 0
-    
-    for epoch in range(1, EPOCHS + 1):
-        train(model, device, train_loader, optimizer, epoch)
-        val_loss = validate(model, device, val_loader)
-        test(model, device, test_loader)
-        
-        # 早停检查
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            patience_counter = 0
-            # 保存最佳模型
-            torch.save(model.state_dict(), 'best_model.pth')
+    print("Train or Test?(t/T for test, other for train)")
+    choice = input()
+    if choice == 't' or choice == 'T':
+        print("Loading best model and testing...")
+        model.load_state_dict(torch.load('best_model_minist.pth'))
+        wrong_samples = test(model, device, test_loader)
+        print('\nDisplaying some wrong predictions:')
+        plot_wrong_predictions(wrong_samples)
+    else:
+        print("With or without dropout?(y/Y for with, other for without)")
+        choice = input()
+        if choice == 'y' or choice == 'Y':
+            model.dropout1 = nn.Dropout(0.25)
+            model.dropout2 = nn.Dropout(0.5)
         else:
-            patience_counter += 1
+            model.dropout1 = nn.Dropout(0)
+            model.dropout2 = nn.Dropout(0)
+        best_val_loss = float('inf')
+        patience_counter = 0
+        
+        # 记录训练过程中的各种指标
+        train_losses = []
+        val_losses = []
+        train_accuracies = []
+        test_accuracies = []
+        
+        for epoch in range(1, EPOCHS + 1):
+            # 使用训练函数并获取返回的指标
+            train_loss, train_accuracy = train(model, device, train_loader, optimizer, epoch)
+            train_losses.append(train_loss)
+            train_accuracies.append(train_accuracy)
             
-        if patience_counter >= PATIENCE:
-            print(f'Early stopping triggered after epoch {epoch}')
-            break
-    
-    # 在训练结束后测试并显示错误预测
-    print('Loading best model and testing...')
-    model.load_state_dict(torch.load('best_model.pth'))
-    wrong_samples = test(model, device, test_loader)
-    print('\nDisplaying some wrong predictions:')
-    plot_wrong_predictions(wrong_samples)
-    print('===Finished Training===')
-    test(model, device, test_loader)
+            # 验证模型
+            val_loss = validate(model, device, val_loader)
+            val_losses.append(val_loss)
+            
+            # 测试模型
+            model.eval()
+            test_loss = 0
+            test_correct = 0
+            with torch.no_grad():
+                for data, target in test_loader:
+                    data, target = data.to(device), target.to(device)
+                    output = model(data)
+                    test_loss += F.nll_loss(output, target, reduction='sum').item()
+                    pred = output.argmax(dim=1, keepdim=True)
+                    test_correct += pred.eq(target.view_as(pred)).sum().item()
+            
+            test_loss /= len(test_loader.dataset)
+            test_accuracy = 100. * test_correct / len(test_loader.dataset)
+            test_accuracies.append(test_accuracy)
+            print(f'\nTest set: Average loss: {test_loss:.4f}, Accuracy: {test_correct}/{len(test_loader.dataset)} ({test_accuracy:.2f}%)\n')
+            
+            # 早停检查
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+                torch.save(model.state_dict(), 'best_model_minist.pth')
+            else:
+                patience_counter += 1
+                
+            if patience_counter >= PATIENCE:
+                print(f'Early stopping triggered after epoch {epoch}')
+                break
+        
+        # 绘制损失曲线
+        plt.figure(figsize=(10, 5))
+        plt.plot(range(1, len(train_losses) + 1), train_losses, label='Training Loss')
+        plt.plot(range(1, len(val_losses) + 1), val_losses, label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Loss Curves')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig('loss_curves.png')
+        plt.close()
+        print("saved as: loss_curves.png")
+        
+        # 绘制准确率曲线
+        plt.figure(figsize=(10, 5))
+        plt.plot(range(1, len(train_accuracies) + 1), train_accuracies, label='Training Accuracy')
+        plt.plot(range(1, len(test_accuracies) + 1), test_accuracies, label='Test Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy (%)')
+        plt.title('Training and Test Accuracy Curves')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig('accuracy_curves.png')
+        plt.close()
+        print("saved as: accuracy_curves.png")
+        
+        print('Loading best model and testing...')
+        model.load_state_dict(torch.load('best_model_minist.pth'))
+        wrong_samples = test(model, device, test_loader)
+        print('\nDisplaying some wrong predictions:')
+        plot_wrong_predictions(wrong_samples)
+        print('===Finished Training===')
+        test(model, device, test_loader)
+
+# result
+# 测试集准确率：99.08%（有dropout）
+# 测试集准确率：98.86%（无dropout）
