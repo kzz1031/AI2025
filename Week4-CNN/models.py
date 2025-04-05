@@ -75,9 +75,9 @@ class CIFAR10NET_VGG_MINI(nn.Module):
         self.bn4 = nn.BatchNorm2d(512)
         
         self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.4)
-        self.fc1 = nn.Linear(512 * 2 * 2, 10)
-        #self.fc2 = nn.Linear(1024, 10)
+        self.dropout = nn.Dropout(0.2)
+        self.fc1 = nn.Linear(512 * 2 * 2, 1024)
+        self.fc2 = nn.Linear(1024, 10)
 
 class Conv_Block(nn.Module):
     """
@@ -118,11 +118,8 @@ class ResNet_CIFAR10(nn.Module):
  
         self.block1 = Conv_Block(inchannel=3, outchannel=64, res=res)
         self.block2 = Conv_Block(inchannel=64, outchannel=128, res=res)
-        self.block3 = Conv_Block(inchannel=128, outchannel=128, res=res)
-        self.block4 = Conv_Block(inchannel=128, outchannel=256, res=res)
-        self.block5 = Conv_Block(inchannel=256, outchannel=256, res=res)
-        self.block6 = Conv_Block(inchannel=256, outchannel=512, res=res)
-        self.block7 = Conv_Block(inchannel=512, outchannel=512, res=res)
+        self.block3 = Conv_Block(inchannel=128, outchannel=256, res=res)
+        self.block4 = Conv_Block(inchannel=256, outchannel=512, res=res)
         
         # 构建卷积层之后的全连接层以及分类器
         self.classifier = nn.Sequential(
@@ -140,13 +137,10 @@ class ResNet_CIFAR10(nn.Module):
         out = self.block1(x)
         out = self.maxpool(out)
         out = self.block2(out)
+        out = self.maxpool(out)
         out = self.block3(out)
         out = self.maxpool(out)
         out = self.block4(out)
-        out = self.block5(out)
-        out = self.maxpool(out)
-        out = self.block6(out)
-        out = self.block7(out)
         out = self.maxpool(out)
         out = self.classifier(out)
         return out
