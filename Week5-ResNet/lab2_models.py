@@ -38,15 +38,28 @@ class MNISTNet(nn.Module):
     """
     MNIST数据集的CNN模型
     包含2个卷积层和2个全连接层，使用dropout进行正则化
+    支持手动设置卷积核大小
     """
-    def __init__(self):
+    def __init__(self, kernel_size=3):
         super(MNISTNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
         self.dropout1 = nn.Dropout(0.4)
         self.dropout2 = nn.Dropout(0.4)
-        self.fc1 = nn.Linear(64 * 14 * 14, 128)  
+        
+        # 动态计算全连接层的输入大小
+        self._calculate_fc_input_size()
+        self.fc1 = nn.Linear(self.fc_input_size, 128)
         self.fc2 = nn.Linear(128, 10)
+
+    def _calculate_fc_input_size(self):
+        # 创建一个虚拟张量，计算经过卷积层后的大小
+        with torch.no_grad():
+            x = torch.zeros(1, 1, 28, 28)  # MNIST 输入大小 (1, 28, 28)
+            x = self.conv1(x)
+            x = self.conv2(x)
+            x = F.max_pool2d(x, 2)
+            self.fc_input_size = x.numel()  # 计算展平后的大小
 
     def forward(self, x):
         x = self.conv1(x)
@@ -60,7 +73,7 @@ class MNISTNet(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        return F.log_softmax(x, dim=1) 
+        return F.log_softmax(x, dim=1)
 
 class CIFAR10NET_VGG_MINI(nn.Module):
     def __init__(self):
