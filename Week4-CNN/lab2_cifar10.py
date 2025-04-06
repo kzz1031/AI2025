@@ -10,6 +10,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pickle
 import os
+from models import CIFAR10Net, ResNet_CIFAR10, VGG19_CIFAR10, VGG16_CIFAR10  # 导入模型定义
 
 # CIFAR10数据集的类别标签
 CLASSES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
@@ -52,59 +53,92 @@ class CustomCIFAR10(Dataset):
             
         return img, target
 
-class CIFAR10Net(nn.Module):
-    def __init__(self):
-        super(CIFAR10Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, 3, padding=1)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.conv2 = nn.Conv2d(64, 128, 3, padding=1)
-        self.bn2 = nn.BatchNorm2d(128)
-        self.conv3 = nn.Conv2d(128, 256, 3, padding=1)
-        self.bn3 = nn.BatchNorm2d(256)
-        self.conv4 = nn.Conv2d(256, 512, 3, padding=1)
-        self.bn4 = nn.BatchNorm2d(512)
-        
-        self.pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout(0.2)
-        self.fc1 = nn.Linear(512 * 2 * 2, 1024)
-        self.fc2 = nn.Linear(1024, 10)
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        x = self.pool(F.relu(self.bn2(self.conv2(x))))
-        x = self.pool(F.relu(self.bn3(self.conv3(x))))
-        x = self.pool(F.relu(self.bn4(self.conv4(x))))
-        
-        x = torch.flatten(x, 1)
-        x = self.dropout(F.relu(self.fc1(x)))
-        x = self.fc2(x)
-        return x
-
 def main():
-    # 参数设置
-    BATCH_SIZE = 1024
-    EPOCHS = 100
-    LEARNING_RATE = 0.001
-    PATIENCE = 7
+    # 基础参数设置
     VALIDATION_SPLIT = 0.1
+    PATIENCE = 20
+    EPOCHS = 200  # 增加训练轮数
+    T_MAX = 100  # 余弦退火周期
     print("Train or Test?(t/T for test, other for train)")
     choice = input()
     
-    # 定义测试数据的预处理
+    # 定义测试数据预处理
     test_transform = transforms.Compose([
         transforms.ToPILImage(),
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ])
     
+    # 选择模型
+    print("Choose model type:")
+    print("1: Standard CNN")
+    print("2: ResNet")
+    print("3: VGG19")
+    print("4: VGG16")
+    model_type_choice = input()
+        
+    if choice != 't' and choice != 'T':
+        # 根据不同模型类型设置不同的训练参数
+        if model_type_choice == '3':  # VGG19
+            BATCH_SIZE = 128
+            LEARNING_RATE = 0.1
+            WEIGHT_DECAY = 5e-4
+            MOMENTUM = 0.9
+            
+            # 学习率阶段设置
+            WARMUP_EPOCHS = 5
+            INITIAL_STAGE = 60
+            #MID_STAGE = 100
+            FINAL_STAGE = 140
+            
+            print("Using VGG19 specific parameters:")
+            print(f"Batch Size: {BATCH_SIZE}")
+            print(f"Epochs: {EPOCHS}")
+            print(f"Initial Learning Rate: {LEARNING_RATE}")
+            print(f"Weight Decay: {WEIGHT_DECAY}")
+        elif model_type_choice == '4':  # VGG16
+            BATCH_SIZE = 128
+            LEARNING_RATE = 0.1
+            WEIGHT_DECAY = 5e-4
+            MOMENTUM = 0.9
+            
+            # 学习率阶段设置
+            WARMUP_EPOCHS = 5
+            INITIAL_STAGE = 60
+            FINAL_STAGE = 105
+            
+            print("Using VGG16 specific parameters:")
+            print(f"Batch Size: {BATCH_SIZE}")
+            print(f"Epochs: {EPOCHS}")
+            print(f"Initial Learning Rate: {LEARNING_RATE}")
+            print(f"Weight Decay: {WEIGHT_DECAY}")
+        else:  # 标准CNN
+            BATCH_SIZE = 1024
+            LEARNING_RATE = 0.01
+            WEIGHT_DECAY = 0.005
+            MOMENTUM = 0.9
+            print("Using Standard CNN parameters:")
+            print(f"Batch Size: {BATCH_SIZE}")
+            print(f"Epochs: {EPOCHS}")
+            print(f"Initial Learning Rate: {LEARNING_RATE}")
+            print(f"Weight Decay: {WEIGHT_DECAY}")
+    else:
+        # 测试模式使用默认参数
+        BATCH_SIZE = 1024
+        LEARNING_RATE = 0.01
+        WEIGHT_DECAY = 0.005
+        MOMENTUM = 0.9
+        WARMUP_EPOCHS = 5
+        INITIAL_STAGE = 60
+        FINAL_STAGE = 105
+
     # 如果选择训练，询问是否使用数据增强
-    use_augmentation = False  # 默认不使用增强
+    use_augmentation = False
     if choice != 't' and choice != 'T':
         print("Use data augmentation?(y/Y for yes, other for no)")
         aug_choice = input()
         
         if aug_choice == 'y' or aug_choice == 'Y':
-            # 使用数据增强
             use_augmentation = True
             print("Using data augmentation...")
             train_transform = transforms.Compose([
@@ -112,10 +146,10 @@ def main():
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                transforms.RandomErasing(p=0.5)  # 移到ToTensor之后
             ])
         else:
-            # 不使用数据增强
             print("Not using data augmentation...")
             train_transform = transforms.Compose([
                 transforms.ToPILImage(),
@@ -123,7 +157,6 @@ def main():
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
             ])
     else:
-        # 测试模式下不需要训练变换，但为了代码不报错，我们也定义一个
         train_transform = test_transform
 
     # 加载数据集
@@ -140,27 +173,61 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = CIFAR10Net().to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3)
     
-    # 根据是否使用数据增强确定文件名前缀
     file_prefix = "cifar10_aug_" if use_augmentation else "cifar10_noaug_"
+    
+    # 选择模型
+    if model_type_choice == '2':
+        print("Using ResNet model...")
+        model = ResNet_CIFAR10(res=True).to(device)
+        file_prefix = "resnet_" + file_prefix
+    elif model_type_choice == '3':
+        print("Using VGG19 model...")
+        model = VGG19_CIFAR10().to(device)
+        file_prefix = "vgg19_" + file_prefix
+    elif model_type_choice == '4':
+        print("Using VGG16 model...")
+        model = VGG16_CIFAR10().to(device)
+        file_prefix = "vgg16_" + file_prefix
+    else:
+        print("Using standard CNN model...")
+        model = CIFAR10Net().to(device)
+    
     model_filename = file_prefix + "best.pth"
     
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)  # 使用相同的参数
+    
+    # # 使用余弦退火学习率调度
+    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX)
+    # print(f"Using Cosine Annealing LR schedule with T_max={T_MAX}")
+    # 使用阶段性学习率调度
+    def lr_schedule(epoch):
+        if epoch < WARMUP_EPOCHS:
+            return LEARNING_RATE * (epoch + 1) / WARMUP_EPOCHS
+        elif epoch < INITIAL_STAGE:
+            return LEARNING_RATE
+        elif epoch < FINAL_STAGE:
+            return LEARNING_RATE * 0.1
+        else:
+            return LEARNING_RATE * 0.01
+    
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_schedule)
+    print("Using stage-wise learning rate schedule for VGG19")
+
     if choice == 't' or choice == 'T':
         # 只进行测试
-        print("Test which model? (a/A for augmented model, other for non-augmented model)")
+        print("Test which model?")
+        print("1: Standard CNN with augmentation")
+        print("2: Standard CNN without augmentation")
+        print("3: ResNet with augmentation")
+        print("4: ResNet without augmentation")
+        print("5: VGG19 with augmentation")
+        print("6: VGG19 without augmentation")
+        print("7: VGG16 with augmentation")
+        print("8: VGG16 without augmentation")
         model_choice = input()
-        model_filename = "cifar10_aug_best.pth" if model_choice == 'a' or model_choice == 'A' else "cifar10_noaug_best.pth"
-        
-        try:
-            print(f"Loading model from {model_filename}...")
-            model.load_state_dict(torch.load(model_filename))
-            test_model(model, device, test_loader, criterion)
-        except FileNotFoundError:
-            print(f"Could not find model file {model_filename}. Please check if the model exists.")
+        evaluate_model(model_choice)
     else:
         # 训练模型
         best_val_loss = float('inf')
@@ -213,12 +280,13 @@ def main():
 
             val_loss /= len(val_loader.dataset)
             val_losses.append(val_loss)
-            scheduler.step(val_loss)
+            scheduler.step()
             val_accuracy = 100. * correct / len(val_loader.dataset)
             
             print(f'Validation set: Average loss: {val_loss:.4f}, '
                   f'Accuracy: {correct}/{len(val_loader.dataset)} ({val_accuracy:.2f}%)')
-
+            
+            print(f'Learning rate: {optimizer.param_groups[0]["lr"]}')
             # 测试
             test_loss, test_accuracy = test_model(model, device, test_loader, criterion)
             test_accuracies.append(test_accuracy)
@@ -288,9 +356,118 @@ def test_model(model, device, test_loader, criterion):
     
     return test_loss, accuracy
 
+def evaluate_model(model_choice):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    test_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
+    
+    test_dataset = CustomCIFAR10('./cifar-10-batches-py', train=False, transform=test_transform)
+    test_loader = DataLoader(test_dataset, batch_size=1024)
+    
+    if model_choice == '1':
+        model_filename = "cifar10_aug_best.pth"
+        model = CIFAR10Net().to(device)
+        model_name = "Standard CNN with augmentation"
+    elif model_choice == '2':
+        model_filename = "cifar10_noaug_best.pth"
+        model = CIFAR10Net().to(device)
+        model_name = "Standard CNN without augmentation"
+    elif model_choice == '3':
+        model_filename = "resnet_cifar10_aug_best.pth"
+        model = ResNet_CIFAR10().to(device)
+        model_name = "ResNet with augmentation"
+    elif model_choice == '4':
+        model_filename = "resnet_cifar10_noaug_best.pth"
+        model = ResNet_CIFAR10().to(device)
+        model_name = "ResNet without augmentation"
+    elif model_choice == '5':
+        model_filename = "vgg19_cifar10_aug_best.pth"
+        model = VGG19_CIFAR10().to(device)
+        model_name = "VGG19 with augmentation"
+    elif model_choice == '6':
+        model_filename = "vgg19_cifar10_noaug_best.pth"
+        model = VGG19_CIFAR10().to(device)
+        model_name = "VGG19 without augmentation"
+    elif model_choice == '7':
+        model_filename = "vgg16_cifar10_aug_best.pth"
+        model = VGG16_CIFAR10().to(device)
+        model_name = "VGG16 with augmentation"
+    elif model_choice == '8':
+        model_filename = "vgg16_cifar10_noaug_best.pth"
+        model = VGG16_CIFAR10().to(device)
+        model_name = "VGG16 without augmentation"
+    else:
+        print("Invalid choice, using Standard CNN with augmentation")
+        model_filename = "cifar10_aug_best.pth"
+        model = CIFAR10Net().to(device)
+        model_name = "Standard CNN with augmentation"
+    
+    # 加载模型权重
+    try:
+        print(f"Loading model: {model_filename}")
+        model.load_state_dict(torch.load(model_filename))
+        print(f"Model {model_name} loaded successfully")
+    except FileNotFoundError:
+        print(f"Error: Model file {model_filename} not found")
+        return
+    except Exception as e:
+        print(f"Error loading model: {str(e)}")
+        return
+    
+    # 评估模型
+    criterion = nn.CrossEntropyLoss()
+    model.eval()
+    test_loss = 0
+    correct = 0
+    class_correct = [0] * 10
+    class_total = [0] * 10
+    
+    print("Starting evaluation...")
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += criterion(output, target).item() * len(data)
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+            
+            # 计算每个类别的准确率
+            correct_tensor = pred.eq(target.view_as(pred))
+            for i in range(len(target)):
+                label = target[i]
+                class_correct[label] += correct_tensor[i].item()
+                class_total[label] += 1
+
+    test_loss /= len(test_loader.dataset)
+    accuracy = 100. * correct / len(test_loader.dataset)
+    
+    # 打印总体结果
+    print('\nTest results:')
+    print(f'Model: {model_name}')
+    print(f'Average loss: {test_loss:.4f}')
+    print(f'Overall accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.2f}%)\n')
+    
+    # 打印每个类别的准确率
+    print('Class accuracy:')
+    for i in range(10):
+        class_acc = 100 * class_correct[i] / class_total[i]
+        print(f'{CLASSES[i]}: {class_acc:.2f}%')
+    
+    return test_loss, accuracy
+
 if __name__ == '__main__':
     main()
 
-# result
-# 训练集准确率：87.52%（有dropout,CNN）
-# 测试集准确率：81.99%（无dropout,CNN）
+# 实验结果
+# 标准CNN:
+# 测试集准确率：87.52%（有数据增强，CNN）
+# 测试集准确率：82.31%（无数据增强，CNN）
+# VGG_MINI: 90.22%
+# VGG_16: 94.11%
+# VGG_19
+# 数据增强提高了约5%的测试准确率
+

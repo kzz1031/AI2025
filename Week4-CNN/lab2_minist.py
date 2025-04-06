@@ -7,8 +7,9 @@ from torch.utils.data import DataLoader, Dataset, random_split
 import numpy as np
 import os
 import matplotlib
-matplotlib.use('Agg')  # 添加这行,设置backend
+matplotlib.use('Agg')  
 import matplotlib.pyplot as plt
+from models import MNISTNet 
 
 class CustomMNIST(Dataset):
     def __init__(self, root_dir, train=True, transform=None):
@@ -87,38 +88,13 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-# 定义CNN模型
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(64 * 14 * 14, 128)  
-        self.fc2 = nn.Linear(128, 10)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout2(x)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
-
 # 创建模型实例
 if torch.cuda.is_available():
     print("cuda")
 else:
     print("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = Net().to(device)
+model = MNISTNet().to(device)
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.5)
 
 # 训练函数
@@ -233,11 +209,14 @@ if __name__ == '__main__':
         print("With or without dropout?(y/Y for with, other for without)")
         choice = input()
         if choice == 'y' or choice == 'Y':
-            model.dropout1 = nn.Dropout(0.25)
-            model.dropout2 = nn.Dropout(0.5)
+            print("Using dropout...")
+            # 保持默认的dropout设置
         else:
-            model.dropout1 = nn.Dropout(0)
-            model.dropout2 = nn.Dropout(0)
+            print("Not using dropout...")
+            # 设置dropout概率为0，相当于禁用dropout
+            model.dropout1.p = 0
+            model.dropout2.p = 0
+        
         best_val_loss = float('inf')
         patience_counter = 0
         
