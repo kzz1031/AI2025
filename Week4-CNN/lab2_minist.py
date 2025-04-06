@@ -62,7 +62,7 @@ torch.manual_seed(42)
 
 # parameters
 BATCH_SIZE = 64
-EPOCHS = 30
+EPOCHS = 40
 LEARNING_RATE = 0.01
 PATIENCE = 5 
 VALIDATION_SPLIT = 0.2  
@@ -95,7 +95,9 @@ else:
     print("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = MNISTNet().to(device)
-optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.5)
+optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9, weight_decay=0.0001)
+# 添加学习率调度器
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=0.1)
 
 # 训练函数
 def train(model, device, train_loader, optimizer, epoch):
@@ -201,7 +203,7 @@ if __name__ == '__main__':
     choice = input()
     if choice == 't' or choice == 'T':
         print("Loading best model and testing...")
-        model.load_state_dict(torch.load('best_model_minist.pth'))
+        model.load_state_dict(torch.load("models/best_model_minist.pth"))
         wrong_samples = test(model, device, test_loader)
         print('\nDisplaying some wrong predictions:')
         plot_wrong_predictions(wrong_samples)
@@ -236,6 +238,11 @@ if __name__ == '__main__':
             val_loss = validate(model, device, val_loader)
             val_losses.append(val_loss)
             
+            # 更新学习率
+            scheduler.step()
+            current_lr = optimizer.param_groups[0]['lr']
+            print(f'current lr: {current_lr}')
+            
             # 测试模型
             model.eval()
             test_loss = 0
@@ -257,6 +264,7 @@ if __name__ == '__main__':
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
+                print(f'Saving best model at epoch {epoch}')
                 torch.save(model.state_dict(), 'best_model_minist.pth')
             else:
                 patience_counter += 1
@@ -287,12 +295,12 @@ if __name__ == '__main__':
         plt.title('Training and Test Accuracy Curves')
         plt.legend()
         plt.grid(True)
-        plt.savefig('accuracy_curves.png')
+        plt.savefig('minist_accuracy_curves.png')
         plt.close()
-        print("saved as: accuracy_curves.png")
+        print("saved as: minist_accuracy_curves.png")
         
         print('Loading best model and testing...')
-        model.load_state_dict(torch.load('best_model_minist.pth'))
+        model.load_state_dict(torch.load("models/best_model_minist.pth"))
         wrong_samples = test(model, device, test_loader)
         print('\nDisplaying some wrong predictions:')
         plot_wrong_predictions(wrong_samples)

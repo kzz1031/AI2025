@@ -88,7 +88,6 @@ def main():
             # 学习率阶段设置
             WARMUP_EPOCHS = 5
             INITIAL_STAGE = 60
-            #MID_STAGE = 100
             FINAL_STAGE = 140
             
             print("Using VGG19 specific parameters:")
@@ -196,7 +195,7 @@ def main():
     model_filename = file_prefix + "best.pth"
     
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)  # 使用相同的参数
+    optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM, weight_decay=WEIGHT_DECAY)
     
     # # 使用余弦退火学习率调度
     # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX)
@@ -409,7 +408,7 @@ def evaluate_model(model_choice):
     # 加载模型权重
     try:
         print(f"Loading model: {model_filename}")
-        model.load_state_dict(torch.load(model_filename))
+        model.load_state_dict(torch.load("models/" + model_filename))
         print(f"Model {model_name} loaded successfully")
     except FileNotFoundError:
         print(f"Error: Model file {model_filename} not found")

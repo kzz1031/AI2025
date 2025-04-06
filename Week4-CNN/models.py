@@ -43,8 +43,8 @@ class MNISTNet(nn.Module):
         super(MNISTNet, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.dropout1 = nn.Dropout(0.25)
-        self.dropout2 = nn.Dropout(0.5)
+        self.dropout1 = nn.Dropout(0.4)
+        self.dropout2 = nn.Dropout(0.4)
         self.fc1 = nn.Linear(64 * 14 * 14, 128)  
         self.fc2 = nn.Linear(128, 10)
 
@@ -144,3 +144,233 @@ class ResNet_CIFAR10(nn.Module):
         out = self.maxpool(out)
         out = self.classifier(out)
         return out
+    
+class ResNet_CIFAR10_PLUS(nn.Module):
+    """
+    CIFAR-10数据集的残差网络模型
+    包含7个残差块和全连接分类器
+    """
+    def __init__(self, res=False):
+        super(ResNet_CIFAR10_PLUS, self).__init__()
+ 
+        self.block1 = Conv_Block(inchannel=3, outchannel=64, res=res)
+        self.block2 = Conv_Block(inchannel=64, outchannel=128, res=res)
+        self.block3 = Conv_Block(inchannel=128, outchannel=128, res=res)
+        self.block4 = Conv_Block(inchannel=128, outchannel=256, res=res)
+        self.block5 = Conv_Block(inchannel=256, outchannel=256, res=res)
+        self.block6 = Conv_Block(inchannel=256, outchannel=512, res=res)
+        self.block7 = Conv_Block(inchannel=512, outchannel=512, res=res)
+        
+        # 构建卷积层之后的全连接层以及分类器
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(0.4),
+            nn.Linear(512 * 2 * 2, 256),
+            nn.Linear(256, 64),
+            nn.Linear(64, 10)
+        )
+ 
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=2)
+ 
+    def forward(self, x):
+        out = self.block1(x)
+        out = self.maxpool(out)
+        out = self.block2(out)
+        out = self.block3(out)
+        out = self.maxpool(out)
+        out = self.block4(out)
+        out = self.block5(out)
+        out = self.maxpool(out)
+        out = self.block6(out)
+        out = self.block7(out)
+        out = self.maxpool(out)
+        out = self.classifier(out)
+        return out
+
+class VGG19_CIFAR10(nn.Module):
+    """
+    VGG19网络模型，针对CIFAR-10数据集优化
+    包含5个卷积块和3个全连接层，使用批归一化和dropout
+    """
+    def __init__(self, dropout_rate=0.5, weight_decay=0.0001):
+        super(VGG19_CIFAR10, self).__init__()
+        
+        # Block 1
+        self.block1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 2
+        self.block2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 3
+        self.block3 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 4
+        self.block4 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 5
+        self.block5 = nn.Sequential(
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # 全连接层
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(512, 4096),
+            nn.BatchNorm1d(4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(4096, 4096),
+            nn.BatchNorm1d(4096),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(4096, 10),
+            nn.BatchNorm1d(10),
+            nn.Softmax(dim=1)
+        )
+        
+        # 权重初始化
+        self._initialize_weights()
+        
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
+        x = self.classifier(x)
+        return x
+
+def make_vgg_layers(spec):
+    """构建VGG特征提取层"""
+    layers = []
+    n_chans_in = 3
+    for v in spec:
+        if isinstance(v, int):
+            # 批归一化所以不需要偏置
+            layers += [
+                nn.Conv2d(n_chans_in, v, 3, padding=1, bias=False),
+                nn.BatchNorm2d(v),
+                nn.ReLU(inplace=True)
+            ]
+            n_chans_in = v
+        elif v == "M":
+            layers += [nn.MaxPool2d(2)]
+    return nn.Sequential(*layers)
+
+class VGG16_CIFAR10(nn.Module):
+    def __init__(self, num_classes=10):
+        super(VGG16_CIFAR10, self).__init__()
+        
+        # 特征提取层配置
+        feature_layers = [
+            64, 64, "M",
+            128, 128, "M",
+            256, 256, 256, "M",
+            512, 512, 512, "M",
+            512, 512, 512, "M",
+        ]
+        
+        # 构建特征提取层
+        self.features = make_vgg_layers(feature_layers)
+        
+        # 分类器
+        self.classifier = nn.Sequential(
+            nn.Linear(512, 4096),
+            nn.ReLU(True),
+            nn.Dropout(0.5),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(0.5),
+            nn.Linear(4096, num_classes)
+        )
+        
+        # 初始化权重
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
