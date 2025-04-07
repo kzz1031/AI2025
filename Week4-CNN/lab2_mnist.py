@@ -100,7 +100,7 @@ if torch.cuda.is_available():
 else:
     print("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = MNISTNet().to(device)
+model = MNISTNet(kernel_size=10).to(device)
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9, weight_decay=0.0001)
 # 添加学习率调度器
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=0.1)
