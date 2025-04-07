@@ -38,35 +38,47 @@ class MNISTNet(nn.Module):
     """
     MNIST数据集的CNN模型
     包含2个卷积层和2个全连接层，使用dropout进行正则化
-    支持手动设置卷积核大小
+    支持手动设置卷积核大小、步长和池化类型（max或avg）
     """
-    def __init__(self, kernel_size=3):
+    def __init__(self, kernel_size=3, stride=1, pooling_type='max'):
         super(MNISTNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
-        self.dropout1 = nn.Dropout(0.4)
-        self.dropout2 = nn.Dropout(0.4)
-        
-        # 动态计算全连接层的输入大小
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = kernel_size // 2  # 保证输出尺寸不变（近似 same padding）
+        self.pooling_type = pooling_type.lower()
+
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=kernel_size, stride=stride, padding=self.padding)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=kernel_size, stride=stride, padding=self.padding)
+
+        self.dropout1 = nn.Dropout(0.2)
+        self.dropout2 = nn.Dropout(0.2)
+
         self._calculate_fc_input_size()
         self.fc1 = nn.Linear(self.fc_input_size, 128)
         self.fc2 = nn.Linear(128, 10)
 
     def _calculate_fc_input_size(self):
-        # 创建一个虚拟张量，计算经过卷积层后的大小
         with torch.no_grad():
-            x = torch.zeros(1, 1, 28, 28)  # MNIST 输入大小 (1, 28, 28)
+            x = torch.zeros(1, 1, 28, 28)
             x = self.conv1(x)
             x = self.conv2(x)
-            x = F.max_pool2d(x, 2)
-            self.fc_input_size = x.numel()  # 计算展平后的大小
+            x = self._pool(x)
+            self.fc_input_size = x.numel()
+
+    def _pool(self, x):
+        if self.pooling_type == 'max':
+            return F.max_pool2d(x, 2)
+        elif self.pooling_type == 'avg':
+            return F.avg_pool2d(x, 2)
+        else:
+            raise ValueError(f"Unsupported pooling_type: {self.pooling_type}, choose 'max' or 'avg'.")
 
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
         x = F.relu(x)
-        x = F.max_pool2d(x, 2)
+        x = self._pool(x)
         x = self.dropout1(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)

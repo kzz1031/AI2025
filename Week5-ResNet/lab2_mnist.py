@@ -100,7 +100,7 @@ if torch.cuda.is_available():
 else:
     print("cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = MNISTNet(kernel_size = 3).to(device)
+model = MNISTNet(kernel_size = 3, stride = 1, pooling_type='avg').to(device)
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9, weight_decay=0.0001)
 # 添加学习率调度器
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=0.1)
@@ -209,7 +209,7 @@ if __name__ == '__main__':
     choice = input()
     if choice == 't' or choice == 'T':
         print("Loading best model and testing...")
-        model.load_state_dict(torch.load("models/best_model_minist.pth"))
+        model.load_state_dict(torch.load("best_model_minist.pth"))
         wrong_samples = test(model, device, test_loader)
         print('\nDisplaying some wrong predictions:')
         plot_wrong_predictions(wrong_samples)
@@ -270,8 +270,8 @@ if __name__ == '__main__':
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
-                print(f'Saving best model at epoch {epoch}')
-                torch.save(model.state_dict(), 'best_model_minist.pth')
+                print(f'Saving best model to best_model_minist_ks3.pth at epoch {epoch}')
+                torch.save(model.state_dict(), 'best_model_minist_ks3.pth')
             else:
                 patience_counter += 1
                 

@@ -47,7 +47,9 @@ optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9, weight
 # 添加学习率调度器
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 20], gamma=0.1)
 ```
-
+### 不同卷积核大小尝试
+> 详见task3 report
+一开始采用的卷积核大小为3，准确率99.2%左右，最后在尝试kernel size为6或者10时，准确率达到了99.5%+，猜测原因是自己写的CNN网路深度小，这时候采用较大的卷积核可以获得更大的感受野，在浅网络上可能更大的kernel size表现会更好
 
 ## cifar10 网络结构
 ### CNN
