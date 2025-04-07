@@ -128,6 +128,13 @@ print("Using stage-wise learning rate schedule for VGG19")
 
 有效防止过拟合
 
+### Dropout
+1. 防止神经元共适应（co-adaptation）：
+- 通过随机失活，让神经元不能彼此“勾结”，迫使每个神经元学到更独立、鲁棒的特征。
+2. 增强泛化能力：
+- Dropout 相当于在训练时 随机训练了多个不同的子网络，测试时相当于将它们集成起来。
+
+
 ### 测试结果
 ```bash
 Loading model: vgg16_cifar10_aug_best.pth
